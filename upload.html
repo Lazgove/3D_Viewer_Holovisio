@@ -137,57 +137,19 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); 
         }
 
-        .dot-circle {
-            width: 100px; 
-            height: 100px; 
+        /* HTML: <div class="loader"></div> */
+        .loader {
+            width: 50px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: 
+            radial-gradient(farthest-side,#ffa516 94%,#0000) top/8px 8px no-repeat,
+            conic-gradient(#0000 30%,#ffa516);
+            -webkit-mask: radial-gradient(farthest-side,#0000 calc(100% - 8px),#000 0);
+            animation: l13 1s infinite linear;
         }
-
-        .dot {
-            fill: #3498db; /* Base color for the dots */
-            transition: r 0.2s ease; /* Smooth transition for radius */
-        }
-
-        /* Keyframes for the animation */
-        @keyframes moveDot {
-            0% { transform: translate(0, 0); }
-            100% { transform: translate(0, 0); } /* This will be updated with JavaScript */
-        }
-
-        /* Styles for the loading text */
-        .loading-text {
-            margin-top: 15px;                 
-            font-size: 24px;                  
-            color: black; 
-            margin-left: 10px;                      
-            font-weight: normal;                
-            animation: fadeIn 1.5s infinite alternate; 
-        }
-
-        @keyframes fadeIn {
-            0% {
-                opacity: 0.7; 
-            }
-            100% {
-                opacity: 1;   
-            }
-        }
-
-        /* Styles for the loading text */
-        .ending-text {   
-            display: none;              
-            font-size: 24px;                  
-            color: black;                     
-            font-weight: normal;                
-            animation: fadeIn 1.5s infinite alternate; 
-        }
-
-        @keyframes fadeIn {
-            0% {
-                opacity: 0.7; 
-            }
-            100% {
-                opacity: 1;   
-            }
+        @keyframes l13{ 
+            100%{transform: rotate(1turn)}
         }
 
     </style>
@@ -207,9 +169,7 @@
     </form>
 
     <div class="loading-container">
-        <svg id="dot-circle" class="dot-circle" viewBox="-10 -10 120 120">
-            <!-- Dots will be created in JavaScript -->
-        </svg>
+        <svg id="loader" class="loader" viewBox="-10 -10 120 120"></svg>
         <div id="loading-text" class="loading-text">Importation...</div>
         <div id="ending-text" class="ending-text">Tous les fichiers ont été uploadés !</div>
     </div>
@@ -255,9 +215,52 @@
                 fileInput.click();
             });
 
-            // Display files after categorization
+            function addObject(fileObj, textures = [], mtl = null, animations = []) {
+                const newObject = {
+                    file: fileObj.file,
+                    folderName: fileObj.folderName,
+                    fileName: fileObj.fileName,
+                    textures: textures,
+                    mtl: mtl,
+                    animations: animations
+                };
+
+                categories.objects.push(newObject);
+                displayFiles();  // Re-render the file list after adding the object
+            }
+
+            // Function to add a texture to an existing object
+            function addTextureToObject(objectIndex, texture) {
+                if (categories.objects[objectIndex]) {
+                    categories.objects[objectIndex].textures.push(texture);
+                    displayFiles();  // Re-render after adding texture
+                } else {
+                    console.error("Object not found");
+                }
+            }
+
+            // Function to add an MTL file to an existing object
+            function addMtlToObject(objectIndex, mtlFile) {
+                if (categories.objects[objectIndex]) {
+                    categories.objects[objectIndex].mtl = mtlFile;
+                    displayFiles();  // Re-render after adding MTL
+                } else {
+                    console.error("Object not found");
+                }
+            }
+
+            // Function to add an animation to an existing object
+            function addAnimationToObject(objectIndex, animation) {
+                if (categories.objects[objectIndex]) {
+                    categories.objects[objectIndex].animations.push(animation);
+                    displayFiles();  // Re-render after adding animation
+                } else {
+                    console.error("Object not found");
+                }
+            }
+
             function displayFiles() {
-                fileList.innerHTML = '';
+                fileList.innerHTML = ''; // Clear the list
                 Object.keys(categories).forEach(category => {
                     if (categories[category].length > 0) {
                         const categoryDiv = document.createElement('div');
@@ -266,9 +269,51 @@
                         fileList.appendChild(categoryDiv);
 
                         categories[category].forEach((fileObj, index) => {
+                            // Create div for the object file
                             const fileDiv = document.createElement('div');
+                            fileDiv.className = 'file-item';
                             fileDiv.textContent = `${fileObj.file.name}`;
 
+                            // Display textures
+                            if (fileObj.textures && fileObj.textures.length > 0) {
+                                const texturesDiv = document.createElement('div');
+                                texturesDiv.className = 'sub-category';
+                                texturesDiv.textContent = 'Textures:';
+                                fileDiv.appendChild(texturesDiv);
+
+                                fileObj.textures.forEach(texture => {
+                                    const textureDiv = document.createElement('div');
+                                    textureDiv.textContent = `${texture.name}`;
+                                    texturesDiv.appendChild(textureDiv);
+                                });
+                            }
+
+                            // Display MTL file
+                            if (fileObj.mtl) {
+                                const mtlDiv = document.createElement('div');
+                                mtlDiv.className = 'sub-category';
+                                mtlDiv.textContent = 'MTL File:';
+                                const mtlFileDiv = document.createElement('div');
+                                mtlFileDiv.textContent = `${fileObj.mtl.name}`;
+                                mtlDiv.appendChild(mtlFileDiv);
+                                fileDiv.appendChild(mtlDiv);
+                            }
+
+                            // Display animations
+                            if (fileObj.animations && fileObj.animations.length > 0) {
+                                const animationsDiv = document.createElement('div');
+                                animationsDiv.className = 'sub-category';
+                                animationsDiv.textContent = 'Animations:';
+                                fileDiv.appendChild(animationsDiv);
+
+                                fileObj.animations.forEach(animation => {
+                                    const animationDiv = document.createElement('div');
+                                    animationDiv.textContent = `${animation.name}`;
+                                    animationsDiv.appendChild(animationDiv);
+                                });
+                            }
+
+                            // Add the remove button
                             const removeBtn = document.createElement('span');
                             removeBtn.textContent = 'Remove';
                             removeBtn.className = 'remove-file';
@@ -281,9 +326,10 @@
                 });
             }
 
+            // Sample removeFile function to handle removal (adjust as needed)
             function removeFile(category, index) {
-                categories[category].splice(index, 1);
-                displayFiles();
+                categories[category].splice(index, 1); // Remove the file from the category
+                displayFiles(); // Re-render the file list after removal
             }
 
             // Utility function to get the file extension
@@ -316,31 +362,86 @@
                 fileName = file.name;
                 const folderName = objectNameInput.value;
 
-                if (['obj', 'fbx', 'ply', 'stl', 'step', 'stp'].includes(ext)) {
-                    fileNameNoExt = getFileNameWithoutExtension(file);
-                    categories.objects.push({ file, folderName, fileName });
-                } else if (['mtl'].includes(ext)) {
-                    categories.mtl.push({ file, folderName, fileName });
-                } else if (['glb', 'gltf'].includes(ext)) {
-                    categories.animations.push({ file, folderName, fileName });
-                } else if (['jpg', 'jpeg', 'png', 'tiff'].includes(ext)) {
-                    categories.textures.push({ file, folderName, fileName });
-                }
+                if (['obj', 'fbx', 'ply', 'stl', 'step', 'stp', 'glb', 'gltf'].includes(ext)) {
+                    addObject({ file, folderName, fileName });
+                    //categories.objects.push({ file, folderName, fileName });
+                } else {
+                    let linkedFiles;
+                    let objects = categories.objects.map(obj => obj.fileName);
 
+                    try {
+                        // First try to link textures by naming
+                        linkedFiles = linkByNaming(file);
+                        console.log("Files linked automatically by naming:", linkedTextures);
+                    } catch (error) {
+                        console.error(error.message);
+
+                        // Fallback to manual linking if naming fails
+                        linkedFiles = linkManually(objects, textures);
+                        console.log("Files linked manually:", linkedTextures);
+                    }
+                }
+                
                 displayFiles();
             }
 
-            // Handle file and folder uploads
-            function handleFileUpload(files) {
-                for (const file of files) {
-                    if (file.webkitRelativePath) {
-                        const pathParts = file.webkitRelativePath.split('/');
-                        categorizeFile(file);
+            function linkByNaming(file) {
+                // Attempt to link textures based on naming
+                const linkedTextures = {};
+                const objectNames = categories.objects.map(obj => obj.fileName);
+
+                for (const objectName of objectNames) {
+
+                    // Try to find a matching texture by name
+                    const matchingTexture = textures.find((texture) =>
+                    texture.name.toLowerCase().includes(objectName)
+                    );
+
+                    if (matchingTexture) {
+                    linkedTextures[objectName] = matchingTexture;
                     } else {
-                        categorizeFile(file);
+                    // If no match is found, throw an error to trigger the fallback
+                    throw new Error(`No matching texture found for object: ${object.name}`);
                     }
                 }
-            }
+
+                return linkedTextures;
+                }
+
+                function linkManually(objects, textures) {
+                // Manual linking logic
+                const manualLinks = {};
+                const objectNames = categories.objects.map(obj => obj.fileName);
+
+                for (const objectName of objectNames) {
+                    console.log(`Please select a texture for the object: ${objectName}`);
+                    // Example: Assume we prompt the user or provide a UI selection for the texture
+                    const selectedTexture = textures[0]; // Replace with user selection logic
+                    manualLinks[objectName] = selectedTexture;
+                }
+
+                return manualLinks;
+                }
+
+            // Handle file and folder uploads
+            function handleFileUpload(files) {
+                const otherFiles = [];
+                console.log('hjbhbhub');
+                files.forEach(file => {
+                    const fileExtension = file.file.split('.').pop().toLowerCase(); // Get the file extension
+
+                    if (objectExtensions.includes(fileExtension)) {
+                        categorizeFile(file);
+                    } else {
+                        // If it's not an object file, push it to the otherFiles array
+                        otherFiles.push({ file: file.file, folderName: file.folderName, fileName: file.fileName });
+                    }
+                });
+
+                otherFiles.forEach(file => {
+                    categorizeFile(file);
+                });
+
 
             fileInput.addEventListener('change', function() {
                 handleFileUpload(fileInput.files);
@@ -368,10 +469,6 @@
             function replaceSpacesWithUnderscores(str) {
                 return str.replace(/ /g, "-");
             }
-
-            // ###                 ###
-            // ###      UPLOAD     ###
-            // ###                 ###
 
             async function uploadToDynamoDB(payload) {
 
@@ -453,7 +550,6 @@
                 }
             }
 
-
             async function uploadFiles() {
 
                 if (!userID) {
@@ -502,19 +598,33 @@
                 if (objectNameInput.value === '') {
                     alert("Entrez un nom d'objet"); // Alert if the input is empty
                 } else {
-
+                    showLoading();
                     await uploadFiles();
-                    // setTimeout(() => {
-                    //         document.getElementById('dot-circle').style.display = 'none';
-                    //         document.getElementById('loading-text').style.display = 'none';
-                    //         document.getElementById('ending-text').style.display = 'flex';
-                    //         setTimeout(() => {
-                    //             hideLoading();
-                    //         }, 2000); // Hide after 2 seconds, for example
-                    //     }, 8000); // Delay of 2000 milliseconds (2 seconds)
+                    setTimeout(() => {
+                            document.getElementById('loader').style.display = 'none';
+                            document.getElementById('loading-text').style.display = 'none';
+                            document.getElementById('ending-text').style.display = 'flex';
+                            setTimeout(() => {
+                                hideLoading();
+                            }, 2000); // Hide after 2 seconds, for example
+                        }, 1000); // Delay of 2000 milliseconds (2 seconds)
                     }
                 });
             });
+
+            function showLoading() {
+            console.log('SHOW LOADING');
+            document.getElementById('upload-form').style.display = 'none';
+            document.querySelector('.loading-container').style.display = 'flex';
+            document.getElementById('loader').style.display = 'flex';
+            document.getElementById('loading-text').style.display = 'flex';
+            document.getElementById('ending-text').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('upload-form').style.display = 'block';
+            document.querySelector('.loading-container').style.display = 'none';
+        }
 
     </script>
 </body> 

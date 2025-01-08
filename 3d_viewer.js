@@ -8,7 +8,7 @@
         if (member) {
             userID = member.id;
             console.log("User ID:", userID);
-            initselectBox();
+            await fetchDynamoData(true, '');
         } else {
             console.log("No member logged in.");
         }
@@ -25,7 +25,6 @@
     const viewerElement = document.getElementById('3d-viewer');
     const resizable = document.querySelector('.resizable');
     const selectBox = document.querySelector('#objects');
-    //selectBox.style.display = "none";
     const animationSelect = document.getElementById('animations');
     const models = document.querySelectorAll('.model');
     const autoRotateCheckbox = document.getElementById('auto-rotate');
@@ -53,7 +52,7 @@
         clearcoatMap: ["clearcoat", "clear_coat"],
         clearcoatRoughnessMap: ["clearcoat_roughness", "clearcoatroughness"],
         sheenColorMap: ["sheen"],
-        anisotropyMap: ["anisotropy", "anisotropic", "anisotropydirection", "anisotropic_direction"] // Anisotropy map
+        anisotropyMap: ["anisotropy", "anisotropic", "anisotropydirection", "anisotropic_direction"]
     };
 
     const loaders = {
@@ -83,46 +82,6 @@
 
     window.addEventListener('resize', onResize);
 
-    const numDots = 12;
-    const svg = document.querySelector('.dot-circle');
-    const radius = 45;
-    const dots = [];
-    let currentDotIndex = 0;
-
-    for (let i = 0; i < numDots; i++) {
-        const angle = (i / numDots) * 2 * Math.PI;
-        const cx = 50 + radius * Math.cos(angle);
-        const cy = 50 + radius * Math.sin(angle);
-
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('class', 'dot');
-        dot.setAttribute('cx', cx);
-        dot.setAttribute('cy', cy);
-        dot.setAttribute('r', 5);
-        svg.appendChild(dot);
-        dots.push(dot);
-    };
-
-        function animateDots() {
-        const currentDot = dots[currentDotIndex];
-        const angle = (currentDotIndex / numDots) * 2 * Math.PI;
-        currentDot.setAttribute('r', 8);
-        currentDot.setAttribute('transform', `translate(0, -2)`);
-        for (let i = 1; i <= 5; i++) {
-            const trailDotIndex = (currentDotIndex + i) % numDots;
-            const trailDot = dots[trailDotIndex];
-            trailDot.setAttribute('r', Math.max(5 - i, 3));
-            trailDot.setAttribute('transform', '');
-        }
-
-        const previousDotIndex = (currentDotIndex + numDots - 1) % numDots;
-        dots[previousDotIndex].setAttribute('r', 5);
-        dots[previousDotIndex].setAttribute('transform', '');
-        currentDotIndex = (currentDotIndex + 1) % numDots;
-    }
-
-    setInterval(animateDots, 300);
-
     const targetPosition = new THREE.Vector3();
 
     const textureMap = new Map();
@@ -146,46 +105,50 @@
             selectBox.appendChild(option);
         });
         }
-        
-    function initselectBox() {
+    
+    async function fetchDynamoData(init, selectedItem) {
         console.log("Initializing selectBox...");
-        const apiURL = "https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/fetchS3Data";
-        fetch(apiURL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userID: userID }),
-        })
-        .then((response) => {
+        console.log(userID);
+    
+        const lambdaUrl = "https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/fetchDynamoDB";
+    
+        try {
+            const response = await fetch(lambdaUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ userID: userID, selectedItem: selectedItem }),
+            });
+    
             if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then((data) => {
-            console.log("API Response:", data);
-            let responseBody;
-    
-            try {
-            responseBody = JSON.parse(data.body);
-            } catch (e) {
-            console.error("Failed to parse response body:", e);
-            return;
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
     
-            if (responseBody.folders) {
-            console.log("Objects from S3:", responseBody.folders);
-            populateselectBox(responseBody.folders);
+            const data = await response.json();
+            console.log("Data received from Lambda:", data);
+    
+            const items = JSON.parse(data.body);
+    
+            if (init) {
+                console.log('huihui');
+                items.forEach(item => {
+                    console.log(item);
+                    const option = document.createElement('option');
+                    option.value = item.objectName;
+                    option.textContent = item.objectName;
+                    selectBox.appendChild(option);
+                });
             } else {
-            console.error("Error: folders not found in response:", responseBody.message || data);
+                console.log('shololo');
+                console.log(items);
+                return items;
             }
-        })
-        .catch((error) => {
-            console.error("Request failed", error);
-        });
+        } catch (error) {
+            console.error("Error calling Lambda function:", error);
+            throw error;
+        }
     }
-    
         
     function init3DViewer() {
 
@@ -228,8 +191,6 @@
             }
         });
         
-        animationSelect.style.display = 'none';
-
         const nullObject = new THREE.Object3D();
         nullObject.position.set(0, 0, 0);
         nullObject.name = "nullObject";
@@ -396,13 +357,10 @@
         this.computeChildrenBoundingBox();
         this.createBoundingBoxesAndAnnotations();
         this.adjustCameraClippingAndPlaneSize();
-        //this.focusOnObjectnew();
         }
 
         updateCameraClippingPlanes() {
         const maxDimension = Math.max(this.size.x, this.size.y, this.size.z);
-        
-        // Set near and far clipping planes
         camera.near = maxDimension * 0.01;
         camera.far = maxDimension * 100;
         camera.updateProjectionMatrix();
@@ -543,17 +501,12 @@
         }
     }
 
-    // ######                 ######
-    // ######    Scene        ######
-    // ######                 ######
-
     function updatePlanePosition() {
         if (currentModel) {
         const distanceToCamera = camera.position.length();
         const boundingBox = new THREE.Box3().setFromObject(currentModel.model);
         const maxSize = boundingBox.getSize(new THREE.Vector3()).length();
-        camera.getObjectByName('planeBG').position.set(0, 0, -(distanceToCamera + maxSize/2)); // Offset based on object size
-        //camera.getObjectByName('planeBG').lookAt(camera.position); // Make the plane face the camera
+        camera.getObjectByName('planeBG').position.set(0, 0, -(distanceToCamera + maxSize/2));
         }
     }
 
@@ -583,7 +536,7 @@
         const plane = camera.getObjectByName('planeBG');
         const overlay = scene.getObjectByName("maskQuad");
         const overlaySquare = scene.getObjectByName("maskQuadSquare");
-        //positionPlaneBehindModel();
+
         if (this.checked) {
         renderer.setClearColor(0x000000, 1);
         plane.material.opacity = 0;
@@ -602,47 +555,40 @@
 
     function setLightPositions() {
         console.log("light called");
-        // Calculate the bounding box of the object
+
         const boundingBox = new THREE.Box3().setFromObject(currentModel.model);
         const size = boundingBox.getSize(new THREE.Vector3());
         const maxDimension = Math.max(size.x, size.y, size.z);
-        const lightDistance = maxDimension * 3; // Adjust light distance based on object size
+        const lightDistance = maxDimension * 3;
 
-        // Clear any existing lights before re-adding (useful if lights are added multiple times)
         camera.getObjectByName('planeBG').clear();
 
-        // Key light
         const keyLight = new THREE.DirectionalLight(0xffffff, 1);
         keyLight.position.set(lightDistance, lightDistance / 2, lightDistance * 2);
         keyLight.castShadow = true;
         keyLight.shadow.mapSize.width = 2048*8;
         keyLight.shadow.mapSize.height = 2048*8;
 
-        // Adjust shadow camera for larger objects
         keyLight.shadow.camera.left = -maxDimension*5;
         keyLight.shadow.camera.right = maxDimension*5;
         keyLight.shadow.camera.top = maxDimension*5;
         keyLight.shadow.camera.bottom = -maxDimension*5;
         keyLight.shadow.camera.near = 0.1;
         keyLight.shadow.camera.far = lightDistance*5;
-        keyLight.shadow.normalBias = 0.05; // Small positive values can help
+        keyLight.shadow.normalBias = 0.05;
         camera.getObjectByName('planeBG').add(keyLight);
 
-        // Fill light (weaker and from a different angle)
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
         fillLight.position.set(-lightDistance, lightDistance / 2, lightDistance);
         fillLight.castShadow = false;
         camera.getObjectByName('planeBG').add(fillLight);
 
-        // Back light (to add separation from the background)
         const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
         backLight.position.set(0, lightDistance / 2, -lightDistance);
         backLight.castShadow = false;
         camera.getObjectByName('planeBG').add(backLight);
     }
 
-
-    // #### RESET CAMERA VIEW ####
     document.getElementById('recenter-button').addEventListener('click', () => {
         if (currentModel) {
             focusOnObject();
@@ -659,7 +605,6 @@
 
         currentModel.model.visible = true;
 
-        // Set the camera to look at the center of the bounding box
         const maxDim = Math.max(currentModel.size.x, currentModel.size.y, currentModel.size.z);
         console.log(maxDim);
         const fov = camera.fov * (Math.PI / 180);
@@ -677,38 +622,26 @@
             controls.update();
         }
 
-        renderer.render(scene, camera); // Trigger render if not in a continuous render loop
+        renderer.render(scene, camera);
         console.log("FOCUS ON OBJECT");
     }
 
-
-    // ######                 ######
-    // ######    ANIMATION    ######
-    // ######                 ######
-
-    // #### Animation loop ####
     function animate() {
         requestAnimationFrame(animate);
-        if (mixer) mixer.update(0.01); // Update animations
+        if (mixer) mixer.update(0.01);
 
-        // Rotate the model if rotationSpeed is greater than 0
         if (currentModel) {
-        //updatePlanePosition();
         updateCameraAndControls();
-        //currentModel.updateBoundingBoxRotation();
         if (currentModel.pointingAxis === 'y') {
-            //alert('y');
-            scene.getObjectByName('nullObject').rotation.y += (rotationSpeed * Math.PI / 180) * (1 / 60); // Convert speed to radians
+            scene.getObjectByName('nullObject').rotation.y += (rotationSpeed * Math.PI / 180) * (1 / 60);
         } else {
-            //alert('z');
-            scene.getObjectByName('nullObject').rotation.z += (rotationSpeed * Math.PI / 180) * (1 / 60); // Convert speed to radians
+            scene.getObjectByName('nullObject').rotation.z += (rotationSpeed * Math.PI / 180) * (1 / 60);
         }
         }
         
         scene.traverse((child) => {
-        // Check if the object is a group and has bounding boxes or annotations
         if (child.userData.viewCam && child.userData.isAnnotation) {
-            child.lookAt(camera.position); // Mark group for removal
+            child.lookAt(camera.position);
         }
         });
         
@@ -716,18 +649,16 @@
         renderer.render(scene, camera);
         }
 
-    // #### ROTATION SPEED ####
-
-    // Function to start/stop rotation with easing
     autoRotateCheckbox.addEventListener('change', function () {
         if (this.checked) {
         isRotating = true;
-        easeInRotation(); // Ease in when checkbox is checked
+        easeInRotation();
         } else {
         isRotating = false;
-        easeOutRotation(); // Ease out when checkbox is unchecked
+        easeOutRotation();
         }
     });
+
     function easeInRotation() {
         isEasing = true;
         const easeIn = () => {
@@ -742,7 +673,6 @@
         easeIn();
     }
 
-    // Function to smoothly decrease the rotation speed (ease-out)
     function easeOutRotation() {
         isEasing = true;
         const easeOut = () => {
@@ -758,9 +688,9 @@
     }
 
     function adjustCameraDistance() {
-        const viewerHeight = window.innerHeight;  // Height of the viewer
-        const radius = viewerHeight / 2;          // Desired radius of the circle
-        const objectSize = currentModel.model.scale.length(); // Approximate size of the object
+        const viewerHeight = window.innerHeight;
+        const radius = viewerHeight / 2;
+        const objectSize = currentModel.model.scale.length();
 
         const fov = camera.fov * (Math.PI / 180);
         const distance = (objectSize / 2) / Math.tan(fov / 2); 
@@ -845,81 +775,39 @@
         annotations = [];
     }
 
-    async function fetchItemFiles(userID, itemName) {
-        const apiUrl = "https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/loadS3Data";
-
-        try {
-            // Fetch the S3 file data
-            const response = await fetch(apiUrl, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ userID, itemName }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            const parsedBody = JSON.parse(data.body);
-            if (!parsedBody || !parsedBody.files) {
-            console.error("The 'files' key is missing in the response.");
-            return;
-            }
-            console.log('df');
-            const files = parsedBody.files;
-            return files;
-
-        } catch (error) {
-            console.error("Error fetching or displaying files:", error);
-        }
-    }
-
     async function cleanAndLoadItem(selectedItem) {
-
         if (currentModel) {
-        scene.getObjectByName('nullObject').remove(currentModel.model);
-        currentModel = null;
-        directionVectors = [];
-        originalPositions = [];
+            scene.getObjectByName('nullObject').remove(currentModel.model);
+            currentModel = null;
+            directionVectors = [];
+            originalPositions = [];
         }
-
+    
         if (selectedItem) {
-        const files = await fetchItemFiles(userID, selectedItem);
-        const extension = files.objects[0]?.key.split('.').pop();
-        console.log(extension);
-        const modelFile = files.objects.map(file => file.url).join(",");
-        const animationsFiles = files.animations.map(file => file.url).join(",");
-        const texturesFiles = files.textures.map(file => file.url).join(",");
-        const mtlFile = files.mtl.map(file => file.url).join(",");
-        const otherUrls = files.other.map(file => file.url).join(",");
+            console.log("Starting fetchDynamoData");
+            let files = await fetchDynamoData(false, selectedItem);
+            console.log("fetchDynamoData complete:", files);
+            files = files[0];
 
-        console.log({
-            modelFile,
-            animationsFiles,
-            texturesFiles,
-            mtlFile,
-            otherUrls,
-        });
+            const objectsUrls = files.objectsUrls.split(",").join(",");
+            const animationsUrls = files.animationsUrls.split(",").join(",");
+            const texturesUrls = files.texturesUrls.split(",").join(",");
+            const mtlUrls = files.mtlUrls.split(",").join(",");
+            const otherUrls = files.otherUrls.split(",").join(",");;
 
-        if (animationsFiles) {
-            parseAndPopulateAnimations(modelFile, animationsFiles, mtlFile, texturesFiles);
-        } else {
-            animationSelect.style.display = 'none';
-            if (texturesFiles && texturesFiles.size === 0) {
-            console.log('texturesFiles file is empty, loading object without texture');
-            handleModelLoading(modelFile, extension, mtlFile, animationsFiles, texturesFiles);
+            console.log({ objectsUrls, animationsUrls, texturesUrls, mtlUrls, otherUrls });
+    
+            if (animationsFiles) {
+                parseAndPopulateAnimations(modelFile, animationsFiles, mtlFile, texturesFiles);
             } else {
-            handleModelLoading(modelFile, extension, mtlFile, animationsFiles, texturesFiles);
+                animationSelect.style.display = 'none';
+                await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
             }
-        }
-
-        startExplosionAndAdjustCamera(true);
+    
+            startExplosionAndAdjustCamera(true);
         }
     }
-
+    
     selectBox.addEventListener("change", async (event) => {
         const selectedItem = event.target.value;
         console.log(selectedItem);
@@ -952,7 +840,7 @@
         }
 
         if (animationsArray.length > 0) {
-            handleModelLoading(file, extension, mtlFile, animationsFiles, texturesFiles);
+            await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
         }
 
         animationSelect.addEventListener('change', () => {
@@ -963,7 +851,7 @@
             const selectedAnimation = animationSelect.value;
             if (animationSelect.selectedIndex === 0)
             {
-            handleModelLoading(file, extension, mtlFile, animationsFiles, texturesFiles);
+                await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
             }
             else {
             playAnimation(selectedAnimation);
@@ -990,11 +878,6 @@
         document.getElementById('3d-viewer').style.display = 'block';
         document.querySelector('.loading-container').style.display = 'none';
     }
-
-    function handleModelLoading(file, extension, mtlFile = null, animationsFiles = null, texturesFiles = null) {
-        loadAndGroupModels(file, extension, texturesFiles);
-        }
-
 
     async function initializeOcct() {
         if (!occtInitialized) {
@@ -1070,20 +953,46 @@
         return targetObject;
     }
 
-    async function loadAndGroupModels(file, fileType, textureUrlsS3) {
+    function getBaseName(url) {
+        const fileName = url.split('/').pop();
+        return fileName.split('.')[0];
+      }
+      
+    const modelBaseNames = models.map(getBaseName);
+    const textureBaseNames = textures.map(getBaseName);
+    
+    function matchModelsWithTextures(models, textures) {
+        const matchedTextures = {};
+        
+        models.forEach(modelUrl => {
+            const baseName = getBaseName(modelUrl);
+            const matchingTextures = textures.filter(textureUrl => getBaseName(textureUrl) === baseName);
+        
+            if (matchingTextures.length > 0) {
+            matchedTextures[baseName] = matchingTextures;
+            } else {
+            matchedTextures[baseName] = [];
+            }
+        });
+    
+    return matchedTextures;
+    }
+      
+    const matchedResults = matchModelsWithTextures(models, textures);
+
+    async function loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls) {
         const group = new THREE.Group();
-        console.log(file);
-        const urls = file.split(',');
-        const textureUrlsList = textureUrlsS3.split(',');
+        const urls = objectsUrls.split(',');
+        const textures = texturesUrls.split(',');
         showLoading();
 
         for (let i = 0; i < urls.length; i++) {
             const url = urls[i];
-            const textureUrls = textureUrlsList[i];
+            const texture = textures[i];
 
             try {
                 const model = await loadModel(url, fileType);
-                                model.traverse((child) => {
+                model.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
@@ -1091,7 +1000,6 @@
                 });
                 const finalModel = model;
                 applyMaterialToMeshModel(finalModel, textureUrlsList);
-
                 group.add(finalModel);
             } catch (error) {
                 console.error(`Error loading model from ${url}:`, error);
@@ -1126,8 +1034,6 @@
             
             return gltf.scene;
         }
-        console.log("loader");
-        console.log(loader);
         const model = await loader.loadAsync(file);
         return (fileTypeLower === 'stp' || fileTypeLower === 'step'|| fileTypeLower === 'stl' || fileTypeLower === 'ply')
             ? applyBasicMaterial(model)
@@ -1148,7 +1054,7 @@
                 const blob = new Blob([json], { type: 'application/json' });
                 const loader = new THREE.GLTFLoader();
                 loader.load(URL.createObjectURL(blob), (gltf) => {
-                    resolve(gltf.scene);  // Return the loaded scene
+                    resolve(gltf.scene);
                 }, undefined, (error) => {
                     console.error(`Error loading GLTF from Blob:`, error);
                     reject(error);
@@ -1403,10 +1309,3 @@
 
   });
 </script>
-
-
-
-
-
-
-
