@@ -26,6 +26,7 @@
     const resizable = document.querySelector('.resizable');
     const selectBox = document.querySelector('#objects');
     const animationSelect = document.getElementById('animations');
+    animationSelect.style.display = 'none';
     const models = document.querySelectorAll('.model');
     const autoRotateCheckbox = document.getElementById('auto-rotate');
     const cotationCheckbox = document.getElementById('cotationCheckbox');
@@ -39,21 +40,28 @@
     const selectedItem = params.get('model');
     const textureLoader = new THREE.TextureLoader();
     const PBR_MAPS = {
-        map: ["albedo", "basecolor", "base_color", "diffuse", "color"],                
-        metalnessMap: ["metalness", "metallic"],                                      
-        roughnessMap: ["roughness", "rough"],
-        specularMap: ["specular", "spec"],
-        normalMap: ["normal", "normalmap", "normals"],
-        aoMap: ["ambientocclusion", "ao", "occlusion"],
-        displacementMap: ["height", "displacement", "disp", "bump"],
-        emissiveMap: ["emissive", "emission", "selfillumination", "self_illumination"],
-        alphaMap: ["opacity", "alpha", "transparency"],
-        glossinessMap: ["glossiness", "gloss"],
-        clearcoatMap: ["clearcoat", "clear_coat"],
-        clearcoatRoughnessMap: ["clearcoat_roughness", "clearcoatroughness"],
-        sheenColorMap: ["sheen"],
-        anisotropyMap: ["anisotropy", "anisotropic", "anisotropydirection", "anisotropic_direction"]
-    };
+        map: ["albedo", "basecolor", "base_color", "diffuse", "color", "diffuseMap", "colorMap"],
+        metalnessMap: ["metalness", "metallic", "metallicMap", "metallicTexture"],
+        roughnessMap: ["roughness", "rough", "roughMap", "roughnessTexture"],
+        specularMap: ["specular", "spec", "specMap", "specularTexture"],
+        normalMap: ["normal", "normalmap", "normals", "normalBumpMap", "bumpMap"],
+        aoMap: ["ambientocclusion", "ao", "occlusion", "ambientOcclusionMap", "aoTexture", "occlusionMap"],
+        displacementMap: ["height", "displacement", "disp", "bump", "heightMap", "dispMap"],
+        emissiveMap: ["emissive", "emission", "selfillumination", "self_illumination", "glowMap", "emissionMap"],
+        alphaMap: ["opacity", "alpha", "transparency", "opacityMap", "transparencyMap", "alphaMap"],
+        glossinessMap: ["glossiness", "gloss", "glossinessMap"],
+        clearcoatMap: ["clearcoat", "clear_coat", "clearcoatTexture", "clearcoatLayerMap"],
+        clearcoatRoughnessMap: ["clearcoat_roughness", "clearcoatroughness", "clearcoatRoughnessTexture", "clearcoatGlossMap"],
+        sheenColorMap: ["sheen", "sheenTexture"],
+        anisotropyMap: ["anisotropy", "anisotropic", "anisotropydirection", "anisotropic_direction", "anisotropicMap", "anisotropicDirectionMap"],
+        subsurfaceScatteringMap: ["subsurfaceScattering", "sss", "subsurfaceMap", "sssMap"],
+        transmissionMap: ["transmission", "glassTransmissionMap"],
+        iorMap: ["ior", "refractionMap"],
+        specularGlossinessMap: ["specularGlossiness", "specGlossMap"],
+        opalescenceMap: ["opalescenceMap"],
+        radiosityMap: ["radiosityMap"],
+        metallicRoughnessMap: ["metallicRoughnessMap"]
+      };
 
     const loaders = {
         fbx: new THREE.FBXLoader(),
@@ -793,12 +801,12 @@
             const animationsUrls = files.animationsUrls.split(",").join(",");
             const texturesUrls = files.texturesUrls.split(",").join(",");
             const mtlUrls = files.mtlUrls.split(",").join(",");
-            const otherUrls = files.otherUrls.split(",").join(",");;
+            //const otherUrls = files.otherUrls.split(",").join(",");;
 
-            console.log({ objectsUrls, animationsUrls, texturesUrls, mtlUrls, otherUrls });
+            console.log({ objectsUrls, animationsUrls, texturesUrls, mtlUrls });
     
-            if (animationsFiles) {
-                parseAndPopulateAnimations(modelFile, animationsFiles, mtlFile, texturesFiles);
+            if (animationsUrls) {
+                parseAndPopulateAnimations(objectsUrls, animationsUrls, mtlUrls, texturesUrls);
             } else {
                 animationSelect.style.display = 'none';
                 await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
@@ -840,7 +848,7 @@
         }
 
         if (animationsArray.length > 0) {
-            await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
+            loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
         }
 
         animationSelect.addEventListener('change', () => {
@@ -851,7 +859,7 @@
             const selectedAnimation = animationSelect.value;
             if (animationSelect.selectedIndex === 0)
             {
-                await loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
+                loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls);
             }
             else {
             playAnimation(selectedAnimation);
@@ -958,8 +966,6 @@
         return fileName.split('.')[0];
       }
       
-    const modelBaseNames = models.map(getBaseName);
-    const textureBaseNames = textures.map(getBaseName);
     
     function matchModelsWithTextures(models, textures) {
         const matchedTextures = {};
@@ -978,18 +984,23 @@
     return matchedTextures;
     }
       
-    const matchedResults = matchModelsWithTextures(models, textures);
+    function getFileExtension(url) {
+        const path = new URL(url).pathname;
+        const match = path.match(/\.([^/.]+)$/);
+        return match ? match[1] : null;
+    }
 
     async function loadAndGroupModels(objectsUrls, texturesUrls, mtlUrls) {
         const group = new THREE.Group();
         const urls = objectsUrls.split(',');
         const textures = texturesUrls.split(',');
+        console.log(textures);
         showLoading();
 
         for (let i = 0; i < urls.length; i++) {
             const url = urls[i];
             const texture = textures[i];
-
+            const fileType = getFileExtension(url);
             try {
                 const model = await loadModel(url, fileType);
                 model.traverse((child) => {
@@ -999,7 +1010,9 @@
                     }
                 });
                 const finalModel = model;
-                applyMaterialToMeshModel(finalModel, textureUrlsList);
+                if (textures) {
+                    applyMaterialToMeshModel(finalModel, textures);
+                };
                 group.add(finalModel);
             } catch (error) {
                 console.error(`Error loading model from ${url}:`, error);
@@ -1020,6 +1033,8 @@
             const mainObject = await LoadStep(file);
             return mainObject;
         }
+        console.log('fileType');
+        console.log(fileType);
         const loader = loaders[fileType.toLowerCase()];
         if (!loader) throw new Error(`Unsupported file type: ${fileType}`);
 
@@ -1096,22 +1111,25 @@
         }, 100);
     }
 
-
     function applyMaterialToMeshModel(model, textureUrls) {
-        const hasUVs = model.geometry && model.geometry.attributes.uv;
+
+        //generateMaterials(texturesUrls);
+
         let materialPBR;
-        if (textureUrls.length > 0 && hasUVs) {
-            materialPBR = createPBRMaterial(textureUrls);
+        if (textureUrls.length > 0) {
+            //materialPBR = createPBRMaterial(textureUrls);
             model.traverse((child) => {
-                if (child.isMesh) {
+                console.log('CHILD TRAVERSE');
+                if (child.isMesh && child.geometry.attributes.uv) {
+                    console.log('CHILD');
                     console.log(child.name);
-                    child.material = materialPBR;
+                    console.log(child.material);
+                    //child.material = materialPBR;
                     child.material.needsUpdate = true;
                 }
             });
         } 
     }
-
 
     function createPBRMaterial(s3Urls) {
         const textureUrls = createTextureUrls(s3Urls);
