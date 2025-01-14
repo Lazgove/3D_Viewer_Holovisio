@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dropdown with Item Delete Button</title>
+    <style>
+        /* General style for the dropdown */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            width: 250px;
+        }
+
+        /* Button to show the dropdown */
+        .dropdown-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: 2px solid #3498db;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Style the arrow */
+        .dropdown-button::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-left: 2px solid white;
+            border-bottom: 2px solid white;
+            transform: rotate(135deg); /* Arrow pointing down by default */
+            transition: transform 0.3s ease;
+        }
+
+        /* Rotate the arrow when the dropdown is open (arrow points up) */
+        .dropdown.open .dropdown-button::after {
+            transform: rotate(-45deg); /* Arrow points up */
+        }
+
+        .dropdown-button:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        /* Dropdown menu (hidden by default) */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            border-radius: 12px;
+            margin-top: 5px;
+        }
+
+        /* Style for each item in the dropdown */
+        .dropdown-item {
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .remove-button {
+            padding: 5px 12px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .remove-button:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Dropdown container -->
+<div class="dropdown">
+    <!-- Dropdown button (selected item) -->
+    <button class="dropdown-button">Select an item</button>
+
+    <!-- Dropdown menu (hidden by default) -->
+    <div class="dropdown-menu">
+        <!-- Items will be dynamically added here from DynamoDB -->
+    </div>
+</div>
+
+<script>
+    // User ID (Assumed to be fetched from MemberStack)
+    let userID = "";
+
+    // Lambda URL for deletion
+    const lambdaDeleteUrl = "https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/deleteObject";
+
+    // Function to fetch DynamoDB data
+    async function fetchDynamoData(init, selectedItem) {    
+        const lambdaUrl = "https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/fetchDynamoDB";
+    
+        try {
+            const response = await fetch(lambdaUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ userID: userID, selectedItem: selectedItem }),
+            });
+    
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+    
+            const data = await response.json();
+            console.log("Data received from Lambda:", data);
+    
+            const items = JSON.parse(data.body);
+    
+            if (init) {
+                populateDropdown(items);
+            } else {
+                return items;
+            }
+        } catch (error) {
+            console.error("Error calling Lambda function:", error);
+            throw error;
+        }
+    }
+
+    // Populate the dropdown with fetched items
+    function populateDropdown(items) {
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        dropdownMenu.innerHTML = ''; // Clear any existing items
+
+        items.forEach(item => {
+            const dropdownItem = document.createElement('div');
+            dropdownItem.classList.add('dropdown-item');
+            dropdownItem.setAttribute('data-value', item.objectName);
+            dropdownItem.innerHTML = `
+                <span>${item.objectName}</span>
+                <button class="remove-button">Supprimer</button>
+            `;
+            dropdownMenu.appendChild(dropdownItem);
+        });
+
+        // Re-add event listeners after populating
+        addDropdownItemEventListeners();
+        addRemoveButtonEventListeners();
+    }
+
+    // Add click event to each dropdown item for selection
+    function addDropdownItemEventListeners() {
+        const dropdownItems = document.querySelectorAll('.dropdown-item');
+        const dropdownButton = document.querySelector('.dropdown-button');
+        dropdownItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const selectedItem = item.querySelector('span').textContent;
+                dropdownButton.textContent = selectedItem; // Update the button text with selected item
+                document.querySelector('.dropdown-menu').style.display = 'none'; // Close dropdown
+
+                // Call the function to update the timestamp in DynamoDB
+                updateTimestamp(userID, selectedItem); // Add timestamp update
+            });
+        });
+    }
+
+    // Add click event to remove buttons
+    function addRemoveButtonEventListeners() {
+        const removeButtons = document.querySelectorAll('.remove-button');
+        removeButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const item = e.target.closest('.dropdown-item'); // Get the parent item of the remove button
+                if (item) {
+                    console.log(`Removing item: ${item.querySelector('span').textContent}`);
+                    removeItemFromLambda(item);
+                    item.remove(); // Remove item from the dropdown
+                }
+                e.stopPropagation(); // Prevent event from propagating to item selection
+            });
+        });
+    }
+
+    // Function to call the delete Lambda
+    async function removeItemFromLambda(itemName) {
+        try {
+            // Check if the element exists
+            if (itemName) {
+                modelName = itemName.dataset.value;
+                // Optionally, log the updated value
+                console.log('Updated data-value:', itemName.dataset.value);
+            } else {
+                alert("Error finding the selected item");
+                return
+            }
+            const response = await fetch(lambdaDeleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: "deleteObject",  // Operation type to indicate delete
+                    payload: {
+                        userID: userID,  // Ensure this is set to the current user's ID
+                        name: modelName,   // Name of the object to delete
+                    }
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`Item ${modelName} successfully deleted from Lambda:`, data);
+                alert(`Item ${modelName} successfully deleted.`);
+            } else {
+                console.error('Failed to delete item:', data);
+                alert('Error deleting item.');
+            }
+        } catch (error) {
+            console.error('Error calling Lambda:', error);
+            alert('Error deleting item.');
+        }
+    }
+
+    // Function to update the timestamp in DynamoDB
+    async function updateTimestamp(userID, itemName) {
+        try {
+            const response = await fetch(lambdaDeleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: "updateTimestamp",  // Operation type to indicate timestamp update
+                    payload: {
+                        userID: userID,  // User ID
+                        name: itemName,   // Name of the item for which timestamp is updated
+                    }
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`Timestamp successfully updated for ${itemName}:`, data);
+            } else {
+                console.error('Failed to update timestamp:', data);
+            }
+        } catch (error) {
+            console.error('Error calling Lambda to update timestamp:', error);
+        }
+    }
+
+    // Function to fetch current user ID (e.g., from MemberStack)
+    (async () => {
+        try {
+            const { data: member } = await window.$memberstackDom.getCurrentMember();
+            if (member) {
+                userID = member.id;
+                console.log("User ID:", userID);
+                await fetchDynamoData(true, ''); // Initial fetch to populate dropdown
+            } else {
+                console.log("No member logged in.");
+            }
+        } catch (error) {
+            console.error("Error fetching MemberStack user data:", error);
+        }
+    })();
+
+    // Toggle dropdown visibility when clicking the dropdown button
+    document.querySelector('.dropdown-button').addEventListener('click', () => {
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        const dropdown = document.querySelector('.dropdown');
+        dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+        dropdown.classList.toggle('open'); // Toggle the 'open' class to rotate the arrow
+    });
+
+    // Close dropdown if clicked outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.querySelector('.dropdown');
+        const dropdownMenu = document.querySelector('.dropdown-menu');
+        const dropdownButton = document.querySelector('.dropdown-button');
+
+        if (!dropdown.contains(e.target)) {
+            dropdownMenu.style.display = 'none'; // Close dropdown
+            dropdown.classList.remove('open');
+        }
+    });
+</script>
+
+</body>
+</html>

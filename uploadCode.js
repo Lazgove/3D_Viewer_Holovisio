@@ -152,6 +152,131 @@
             100%{transform: rotate(1turn)}
         }
 
+        /* Basic styling for the tree view */
+        .tree-node {
+            margin-bottom: 10px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .object-container {
+            display: flex;
+            align-items: left;
+            margin-bottom: 10px; /* Space between object and its subcategories */
+            flex-direction: column; /* Align items vertically */
+            gap: 2.5px; /* Optional: space between items */
+        }
+
+        .parent-node {
+            font-weight: bold;
+            margin-right: 10px; /* Space between the object name and the toggle button */
+        }
+
+        .toggle {
+            cursor: pointer;
+        }
+
+        .tree-children {
+            padding-left: 20px; /* Indentation for child nodes */
+            margin-top: 10px; /* Increased margin for better visibility */
+        }
+
+        .tree-children.hidden {
+            display: none;
+        }
+
+        .sub-node {
+            margin-left: 20px; /* Additional indentation for subcategories */
+            margin-top: 10px; /* Margin between subcategories */
+            display: flex;
+            align-items: left;
+            flex-direction: column; /* Align items vertically */
+            gap: 2.5px; /* Optional: space between items */
+        }
+
+        .sub-node-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px; /* Space below the title for files */
+        }
+
+        .file-container {
+            margin-top: 5px;
+            padding-left: 10px; /* Space between subcategory title and files */
+            display: flex;
+            flex-direction: column; /* Align items vertically */
+            gap: 2.5px; /* Optional: space between items */
+        }
+
+        .file-item {
+            display: flex;  /* Ensure each file item is on its own line */
+            padding: 2px 0;
+            margin-bottom: 5px; /* Add margin to space out the file items */
+        }
+
+        .remove-file {
+            margin-left: 10px;
+            cursor: pointer;
+            color: red;
+            font-size: 12px;
+        }
+
+        /* Add hover effect for remove button */
+        .remove-file:hover {
+            text-decoration: underline;
+        }
+
+        .tree-view ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+
+        .caret {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .nested {
+            display: none;
+            padding-left: 20px;
+        }
+
+        .caret-down::before {
+            content: "▼";
+        }
+
+        .caret-up::before {
+            content: "▲";
+        }
+
+        .node-actions {
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        button {
+            margin-left: 5px;
+        }
+        
+        li button {
+            margin-left: auto; /* Push the button to the far right */
+        }
+
+        space {
+            display: flex;                /* Use flexbox layout */
+            justify-content: space-between; /* Space between the text and the button */
+            align-items: center;          /* Align items vertically */
+            padding: 5px 0;               /* Add spacing between items */
+        }
+
+        spaceChild {
+            display: flex;                /* Use flexbox layout */
+            justify-content: space-between; /* Space between the text and the button */
+            align-items: center;          /* Align items vertically */
+            padding: 5px 0;               /* Add spacing between items */
+        }
+
     </style>
     
 </head>
@@ -215,35 +340,125 @@
                 fileInput.click();
             });
 
-            // Display files after categorization
             function displayFiles() {
-                fileList.innerHTML = '';
-                Object.keys(categories).forEach(category => {
-                    if (categories[category].length > 0) {
-                        const categoryDiv = document.createElement('div');
-                        categoryDiv.className = 'category';
-                        categoryDiv.textContent = category.charAt(0).toUpperCase() + category.slice(1) + ':';
-                        fileList.appendChild(categoryDiv);
-
-                        categories[category].forEach((fileObj, index) => {
-                            const fileDiv = document.createElement('div');
-                            fileDiv.textContent = `${fileObj.file.name}`;
-
-                            const removeBtn = document.createElement('span');
-                            removeBtn.textContent = 'Remove';
-                            removeBtn.className = 'remove-file';
-                            removeBtn.onclick = () => removeFile(category, index);
-
-                            fileDiv.appendChild(removeBtn);
-                            fileList.appendChild(fileDiv);
+                fileList.innerHTML = ''; // Clear the list
+                const ul = document.createElement('ul');
+            
+                // Helper function to create a nested structure
+                function createNestedStructure(parentLi, titleText, items, parentData) {
+                    const ulChild = document.createElement('ul');
+                    const titleElement = document.createElement('h5');
+                    titleElement.textContent = titleText;
+                    console.log(titleText);
+            
+                    parentLi.appendChild(ulChild);
+                    ulChild.parentNode.insertBefore(titleElement, ulChild);
+            
+                    items.forEach((item, index) => {
+                        const liChild = document.createElement('li');
+                        const placeChild = document.createElement('div');
+                        const span = document.createElement('span');
+                        span.classList.add('caret');
+                        span.textContent = item.name;
+            
+                        const actions = document.createElement('span');
+                        actions.classList.add('node-actions');
+            
+                        // Add remove button
+                        const removeBtn = document.createElement('button');
+                        removeBtn.textContent = "Supprimer";
+                        removeBtn.addEventListener('click', function () {
+                            removeNode(index, parentData);
                         });
+                        actions.appendChild(removeBtn);
+                        placeChild.appendChild(span);
+                        placeChild.appendChild(actions);
+                        ulChild.appendChild(placeChild);
+                    });
+                }
+            
+                // Main loop to process objects
+                categories.objects.forEach((fileObj, index) => {
+                    const li = document.createElement('li');
+                    const place = document.createElement('div');
+                    const span = document.createElement('span');
+                    span.classList.add('caret');
+                    span.textContent = fileObj.file.name;
+            
+                    const actions = document.createElement('span');
+                    actions.classList.add('node-actions');
+            
+                    // Add remove button
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = "Supprimer";
+                    removeBtn.addEventListener('click', function () {
+                        removeNode(index, categories.objects);
+                    });
+                    actions.appendChild(removeBtn);
+                    place.appendChild(span);
+                    place.appendChild(actions);
+                    li.append(place);
+                    ul.appendChild(li);
+
+                    // Add nested structures for textures, mtl, and animations
+                    if (fileObj.textures && fileObj.textures.length > 0) {
+                        createNestedStructure(li, 'Textures', fileObj.textures, fileObj.textures);
+                    }
+            
+                    if (fileObj.mtl && fileObj.mtl.length > 0) {
+                        createNestedStructure(li, 'MTL', fileObj.mtl, fileObj.mtl);
+                    }
+            
+                    if (fileObj.animations && fileObj.animations.length > 0) {
+                        createNestedStructure(li, 'Animations', fileObj.animations, fileObj.animations);
                     }
                 });
+            
+                // Add the main list to the DOM
+                fileList.appendChild(ul);
+            
+                // Add the title above the list
+                const titleElementMain = document.createElement('h4');
+                titleElementMain.textContent = 'Objets';
+                ul.parentNode.insertBefore(titleElementMain, ul);
+            }
+            
+            // Function to remove a node
+            function removeNode(index, parentData) {
+                parentData.splice(index, 1); // Remove the node from parentData
+                displayFiles(); // Re-render the tree after removal
             }
 
-            function removeFile(category, index) {
-                categories[category].splice(index, 1);
+            // ###                              ###     
+            // ###      ADD TO CATEGORIES       ###
+            // ###                              ###
+
+            function addObject(fileObj, textures = [], mtl = [], animations = []) {
+                const newObject = {
+                    file: fileObj.file,
+                    folderName: fileObj.folderName,
+                    fileName: fileObj.fileName,
+                    textures: textures,
+                    mtl: mtl,
+                    animations: animations
+                };
+
+                categories.objects.push(newObject);
+                //console.log(newObject);
                 displayFiles();
+            }
+
+            // Unified function to add a file (texture, MTL, or animation) to an existing object
+            function addFile(objectIndex, fileType, file) {
+                if (!categories.objects[objectIndex]) {
+                    console.error("Object not found");
+                    return;
+                }
+                
+                const object = categories.objects[objectIndex];
+                object.textures.push(file);
+
+                displayFiles(); // Re-render after updating
             }
 
             // Utility function to get the file extension
@@ -268,25 +483,116 @@
                 return fileNameWithoutExtension;
               }
               
+              function categorizeFileType(file) {
+                const extension = getFileExtension(file.name).toLowerCase();
+            
+                // Define categories for each type
+                const textureExtensions = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'tiff', 'tif', 'webp', 'exr', 'hdr'];
+                const animationExtensions = ['fbx', 'glb', 'gltf', 'bvh', 'abc', 'dae'];
+                const mtlExtensions = ['mtl'];
+            
+                // Categorize based on extension
+                if (textureExtensions.includes(extension)) {
+                    return 'texture';
+                } else if (animationExtensions.includes(extension)) {
+                    return 'animation';
+                } else if (mtlExtensions.includes(extension)) {
+                    return 'mtl';
+                } else {
+                    return 'unknown'; // If the extension doesn't match any category
+                }
+            }
 
             // Categorize files based on file extension
             function categorizeFile(file) {
-                const ext = file.name.split('.').pop().toLowerCase();
 
-                fileName = file.name;
+                const ext = file.name.split('.').pop().toLowerCase();
                 const folderName = objectNameInput.value;
 
-                if (['obj', 'fbx', 'ply', 'stl', 'step', 'stp', 'glb', 'gltf'].includes(ext)) {
-                    categories.objects.push({ file, folderName, fileName });
-                } else if (['mtl'].includes(ext)) {
-                    categories.mtl.push({ file, folderName, fileName });
-                } else if (['glb', 'gltf'].includes(ext)) {
-                    categories.animations.push({ file, folderName, fileName });
-                } else if (['jpg', 'jpeg', 'png', 'tiff'].includes(ext)) {
-                    categories.textures.push({ file, folderName, fileName });
+                if (['obj', 'fbx', 'ply', 'stl', 'step', 'stp'].includes(ext)) {
+                    const fileObj = {
+                        file,
+                        folderName,
+                        fileName: file.name,
+                        textures: [],
+                        animations: [],
+                        mtl: []
+                    };
+
+                    addObject(fileObj);
+                }
+                else {
+                    try {
+                        // First try to link textures by naming
+                        linkByNaming(file);
+
+                    } catch (error) {
+                        console.error(error.message);
+
+                        // Fallback to manual linking if naming fails
+                        linkManually(objects, textures);
+                    }
+                }
+                
+                displayFiles();
+            }
+
+            // Function to extract the base name (without extension)
+            function getBaseName(filePath) {
+                return filePath.split('/').pop().split('.')[0]; // Extracts the base name (without extension)
+            }
+
+            // Function to find a single matched file and its index
+            function matchFile(fileName, fileList) {
+
+                for (let i = 0; i < fileList.length; i++) {
+                    if (fileList[i].name === fileName) {
+                        return { file: fileList[i], index: i }; // Return the matched file and its index
+                    }
                 }
 
-                displayFiles();
+                return null; // Return null if no match is found
+            }
+
+            function linkByNaming(file) {
+
+                // Attempt to link textures based on naming
+                const baseName = file.name.split('.')[0];
+                let matchedObjectIndex = -1; // Initialize to -1 to represent "no match"
+                categories.objects.forEach((object, index) => {
+                    // Check if the base name matches a substring of the file name (case-insensitive)
+                    if (object.file.name.toLowerCase().includes(baseName.toLowerCase())) {
+                        matchedObjectIndex = index;
+                    }
+                });
+                console.log('Match Found:');
+                console.log(matchedObjectIndex);
+
+                const fileType = categorizeFileType(file);
+                
+                console.log('File Type:', fileType);
+
+                if (matchedObjectIndex !== -1) { // Check for a valid match
+                    addFile(matchedObjectIndex, fileType, file);
+                }
+
+                console.log('Processing complete');
+
+            }
+
+            function linkManually(objects, textures) {
+                // Manual linking logic
+                const manualLinks = {};
+                const objectNames = categories.objects.map(obj => obj.fileName);
+
+                for (const objectName of objectNames) {
+                    console.log(`Please select a texture for the object: ${objectName}`);
+                    // Example: Assume we prompt the user or provide a UI selection for the texture
+                    const selectedTexture = textures[0]; // Replace with user selection logic
+                    manualLinks[objectName] = selectedTexture;
+                }
+
+                return manualLinks;
             }
 
             // Handle file and folder uploads
@@ -328,6 +634,10 @@
                 return str.replace(/ /g, "-");
             }
 
+            // ###                 ###
+            // ###      UPLOAD     ###
+            // ###                 ###
+
             async function uploadToDynamoDB(payload) {
 
             try { 
@@ -355,23 +665,11 @@
             }
 
             async function getPresignedUrl(file, userID, name, category) {
-                const knownMimeTypes = {
-                    fbx: "application/octet-stream",
-                    obj: "text/plain",
-                    gltf: "model/gltf+json",
-                    glb: "model/gltf-binary",
-                    mtl: "text/plain",
-                    // Add more as needed
-                };
-
-                const extension = file.fileName.split(".").pop().toLowerCase();
-                const contentType = knownMimeTypes[extension] || "application/octet-stream";
-
                 try {
                     // 1. Request a pre-signed URL
                     const presignedUrlResponse = await fetch("https://2uhjohkckl.execute-api.eu-west-3.amazonaws.com/production/uploadObject", {
                         method: "POST",
-                        headers: { "Content-Type": contentType },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             operation: "getPresignedUrl",
                             payload: {
@@ -403,7 +701,7 @@
                     const uploadResponse = await fetch(presignedUrl, {
                         method: "PUT",
                         headers: { "Content-Type": file.type || "application/octet-stream" },
-                        body: file.file,
+                        body: file,
                     });
 
                     if (!uploadResponse.ok) {
@@ -420,6 +718,7 @@
                 }
             }
 
+
             async function uploadFiles() {
 
                 if (!userID) {
@@ -434,34 +733,32 @@
                 const fileData = [];
 
                 for (const categoryKey of Object.keys(categories)) {
-
                     const files = categories[categoryKey];
 
-                    if (files.length > 0) {
-                        for (const file of files) {
-                            if (!(file.file instanceof File)) {
-                                throw new Error('The provided value is not a valid File object.');
-                            }
+                    for (const file of files) {
+                        if (!(file.file instanceof File)) {
+                            throw new Error('The provided value is not a valid File object.');
+                        }
 
-                            const { presignedUrl, s3Key } = await getPresignedUrl(file, userID, objectName, categoryKey);
+                        const { presignedUrl, s3Key } = await getPresignedUrl(file, userID, objectName, categoryKey);
 
-                            fileData.push({
-                            category: categoryKey,
-                            filename: file.fileName,
-                            url: s3Key,
-                        });
-                    }
-                    // Payload to send to Lambda
-                    const payload = {
-                        userID: userID, 
-                        name: noSpaceObjectName,
-                        timestamp: new Date().toISOString(),
-                        files: fileData
-                    };
-                    console.log('payload');
-                    console.log(payload);
-                    await uploadToDynamoDB(payload);
+                        fileData.push({
+                        category: categoryKey,
+                        filename: file.fileName,
+                        url: s3Key,
+                    });
                 }
+
+                // Payload to send to Lambda
+                const payload = {
+                    userID: userID, 
+                    name: noSpaceObjectName,
+                    timestamp: new Date().toISOString(),
+                    files: fileData
+                };
+                console.log('payload');
+                console.log(payload);
+                await uploadToDynamoDB(payload);
             }
         }
 
